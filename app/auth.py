@@ -1,8 +1,7 @@
-"""Привязка Telegram, роли, PIN и журнал."""
+"""Привязка Telegram, роли и журнал."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import secrets
@@ -84,8 +83,7 @@ ROLE_ACTIONS = {
     "operator": OPERATOR_ACTIONS,
     "owner": OWNER_ACTIONS,
 }
-DANGEROUS = frozenset({"shell", "delete", "power", "service_stop"})
-NEEDS_CONFIRM = frozenset({"delete", "power", "service_stop"})
+NEEDS_CONFIRM = frozenset({"delete", "power", "service_stop", "shell"})
 
 
 class AuthError(Exception):
@@ -125,10 +123,6 @@ def _same(left: str, right: str) -> bool:
     return secrets.compare_digest(left, right)
 
 
-def _pin_hash(pin: str, salt: str) -> str:
-    return hashlib.sha256(f"{salt}:{pin}".encode("utf-8")).hexdigest()
-
-
 class Store:
     def __init__(self, path: Path | None = None) -> None:
         self.path = path or CONFIG_PATH
@@ -140,14 +134,10 @@ class Store:
         return {
             "bot_token": "",
             "backup_bot_token": "",
-            "pin_hash": "",
-            "pin_salt": "",
             "users": [],
             "pair_code": "",
             "pair_role": "owner",
             "pair_until": 0,
-            "failed_pins": 0,
-            "lock_until": 0,
             "failed_pairs": 0,
             "pair_lock_until": 0,
             "paused": False,
@@ -165,9 +155,10 @@ class Store:
             if isinstance(raw, dict):
                 data.update(raw)
         changed = not existed
-        if not data.get("pin_salt"):
-            data["pin_salt"] = secrets.token_hex(16)
-            changed = True
+        for key in ("pin_hash", "pin_salt", "failed_pins", "lock_until"):
+            if key in data:
+                data.pop(key, None)
+                changed = True
         if not data.get("pair_code"):
             data["pair_code"] = secrets.token_hex(4)
             changed = True
@@ -232,80 +223,9 @@ class Store:
             self.data["paused"] = bool(paused)
             self._write(self.data)
 
-    def has_pin(self) -> bool:
-        with self._lock:
-            return bool(self.data.get("pin_hash"))
-
-    def pin_locked(self) -> bool:
-        with self._lock:
-            return float(self.data.get("lock_until") or 0) > time.time()
-
-    def lock_seconds_left(self) -> int:
-        with self._lock:
-            left = float(self.data.get("lock_until") or 0) - time.time()
-        return max(0, int(left))
-
-    def check_pin(self, pin: str) -> bool:
-        with self._lock:
-            now = time.time()
-            if float(self.data.get("lock_until") or 0) > now:
-                return False
-            if not self.data.get("pin_hash"):
-                return False
-            expected = _pin_hash(pin.strip(), str(self.data["pin_salt"]))
-            if secrets.compare_digest(str(self.data["pin_hash"]), expected):
-                self.data["failed_pins"] = 0
-                self._write(self.data)
-                return True
-            fails = int(self.data.get("failed_pins") or 0) + 1
-            self.data["failed_pins"] = fails
-            if fails >= MAX_FAILS:
-                self.data["lock_until"] = now + LOCK_SECONDS
-                self.data["failed_pins"] = 0
-            self._write(self.data)
-            return False
-
-    def require(
-        self,
-        user: User | None,
-        action: str,
-        pin: str = "",
-        pin_checked: bool = False,
-    ) -> None:
+    def require(self, user: User | None, action: str) -> None:
         if user is None or not self.allows(user, action):
             raise AuthError("Нет доступа")
-        if action not in DANGEROUS:
-            return
-        if not self.has_pin():
-            raise AuthError("Сначала задайте PIN в окне на ПК")
-        if self.pin_locked():
-            raise AuthError(f"PIN заблокирован ещё {self.lock_seconds_left()} с")
-        if pin_checked:
-            return
-        if not pin or not self.check_pin(pin):
-            raise AuthError("Неверный PIN")
-
-    def require_settings_pin(self, pin: str) -> None:
-        if not self.has_pin():
-            return
-        if self.pin_locked():
-            raise AuthError(f"PIN заблокирован ещё {self.lock_seconds_left()} с")
-        if not self.check_pin(pin):
-            raise AuthError("Неверный PIN")
-
-    def set_pin(self, new_pin: str, old_pin: str) -> None:
-        new_pin = new_pin.strip()
-        if not 4 <= len(new_pin) <= 32:
-            raise AuthError("PIN от 4 до 32 символов")
-        if self.pin_locked():
-            raise AuthError(f"PIN заблокирован ещё {self.lock_seconds_left()} с")
-        if self.has_pin() and not self.check_pin(old_pin):
-            raise AuthError("Старый PIN неверный")
-        with self._lock:
-            self.data["pin_hash"] = _pin_hash(new_pin, str(self.data["pin_salt"]))
-            self.data["failed_pins"] = 0
-            self.data["lock_until"] = 0
-            self._write(self.data)
 
     def pair(self, user_id: int, name: str, code: str) -> User:
         with self._lock:
@@ -340,10 +260,9 @@ class Store:
             self._write(self.data)
             return User(int(user_id), label, role)
 
-    def new_pair_code(self, role: str, pin: str) -> str:
+    def new_pair_code(self, role: str) -> str:
         if role not in ROLES:
             raise AuthError("Неизвестная роль")
-        self.require_settings_pin(pin)
         with self._lock:
             code = secrets.token_hex(4)
             self.data["pair_code"] = code
@@ -352,10 +271,9 @@ class Store:
             self._write(self.data)
             return code
 
-    def set_role(self, user_id: int, role: str, pin: str) -> None:
+    def set_role(self, user_id: int, role: str) -> None:
         if role not in ROLES:
             raise AuthError("Неизвестная роль")
-        self.require_settings_pin(pin)
         with self._lock:
             users = self._users_raw()
             target = next((item for item in users if item["id"] == int(user_id)), None)
@@ -369,8 +287,7 @@ class Store:
             self.data["users"] = users
             self._write(self.data)
 
-    def remove_user(self, user_id: int, pin: str) -> None:
-        self.require_settings_pin(pin)
+    def remove_user(self, user_id: int) -> None:
         with self._lock:
             users = self._users_raw()
             target = next((item for item in users if item["id"] == int(user_id)), None)
@@ -443,10 +360,7 @@ class Store:
                 "pair_code": code,
                 "pair_role": str(self.data.get("pair_role") or "operator"),
                 "pair_seconds": max(0, left),
-                "has_pin": bool(self.data.get("pin_hash")),
                 "paused": bool(self.data.get("paused")),
-                "pin_locked": float(self.data.get("lock_until") or 0) > time.time(),
-                "lock_seconds": max(0, int(float(self.data.get("lock_until") or 0) - time.time())),
                 "has_token": bool(self.data.get("bot_token")),
                 "has_backup": bool(self.data.get("backup_bot_token")),
                 "launchers": self._launchers_raw(),

@@ -29,7 +29,7 @@ from aiogram.types import (
 )
 
 from app.actions import Actions, downloads_dir, format_bytes, format_uptime
-from app.auth import NEEDS_CONFIRM, AuthError, Store, User, actor_label, clean_name
+from app.auth import AuthError, Store, User, actor_label, clean_name
 
 SEND_LIMIT = 49 * 1024 * 1024
 RECV_LIMIT = 20 * 1024 * 1024
@@ -130,7 +130,7 @@ def help_text(user: User) -> str:
         + common
         + operator
         + "\n/rm путь — удалить файл\n/svc stop Имя\n/power — питание\n/sh команда\n/audit — журнал"
-        + "\nОпасные команды спрашивают PIN и подтверждение."
+        + "\nОпасная команда спрашивает кнопками «Да» и «Нет»."
     )
 
 
@@ -321,33 +321,29 @@ def build_router(runner: BotRunner) -> Router:
         await message.answer(text, reply_markup=keyboard(user) if user else None)
 
     async def danger(message: Message, user: User, action: str, payload: dict[str, Any], prompt: str) -> None:
-        if not store.has_pin():
-            await say(message, "Сначала задайте PIN в окне на ПК.", user)
-            return
-        if store.pin_locked():
-            await say(message, f"PIN заблокирован ещё {store.lock_seconds_left()} с.", user)
-            return
+        token = secrets.token_hex(4)
         runner.pending[message.chat.id] = {
-            "stage": "pin",
+            "stage": "confirm",
             "action": action,
             "payload": payload,
+            "token": token,
+            "user_id": user.id,
             "expires": time.time() + 120,
         }
-        await message.answer(prompt)
+        await message.answer(prompt, reply_markup=inline([[("Да", f"ok:{token}"), ("Нет", f"no:{token}")]]))
 
     async def perform(
         message: Message,
         user: User,
         action: str,
         payload: dict[str, Any],
-        pin_checked: bool = False,
     ) -> None:
         if action == "status":
-            result = actions.run(user, "status", "статус", actions.metrics, pin_checked=pin_checked)
+            result = actions.run(user, "status", "статус", actions.metrics)
             await say(message, format_status(result["data"]) if result["ok"] else h(result["error"]), user)
             return
         if action == "screenshot":
-            result = actions.run(user, "screenshot", "скриншот", actions.take_screenshot, pin_checked=pin_checked)
+            result = actions.run(user, "screenshot", "скриншот", actions.take_screenshot)
             if not result["ok"]:
                 await say(message, h(result["error"]), user)
                 return
@@ -364,7 +360,7 @@ def build_router(runner: BotRunner) -> Router:
             await send_windows(message, user)
             return
         if action == "clipboard":
-            result = actions.run(user, "clipboard", "чтение", actions.clipboard_get, pin_checked=pin_checked)
+            result = actions.run(user, "clipboard", "чтение", actions.clipboard_get)
             if not result["ok"]:
                 await say(message, h(result["error"]), user)
                 return
@@ -379,12 +375,11 @@ def build_router(runner: BotRunner) -> Router:
                 mode,
                 lambda: actions.power(mode),
                 confirm=True,
-                pin_checked=pin_checked,
             )
             await say(message, h(result["data"] if result["ok"] else result["error"]), user)
             return
         if action == "power_abort":
-            result = actions.run(user, "power_abort", "abort", lambda: actions.power("abort"), pin_checked=pin_checked)
+            result = actions.run(user, "power_abort", "abort", lambda: actions.power("abort"))
             await say(message, h(result["data"] if result["ok"] else result["error"]), user)
             return
         if action == "shell":
@@ -394,7 +389,7 @@ def build_router(runner: BotRunner) -> Router:
                 "shell",
                 command,
                 lambda: actions.shell(command),
-                pin_checked=pin_checked,
+                confirm=True,
             )
             text = result["data"] if result["ok"] else result["error"]
             await say(message, f"<pre>{h(text, 3000)}</pre>", user)
@@ -407,7 +402,6 @@ def build_router(runner: BotRunner) -> Router:
                 path,
                 lambda: actions.delete_file(path),
                 confirm=True,
-                pin_checked=pin_checked,
             )
             await say(message, h(result["data"] if result["ok"] else result["error"]), user)
             return
@@ -419,9 +413,18 @@ def build_router(runner: BotRunner) -> Router:
                 name,
                 lambda: actions.service_control(name, False),
                 confirm=True,
-                pin_checked=pin_checked,
             )
             await say(message, h(result["data"] if result["ok"] else result["error"]), user)
+            return
+        if action == "kill":
+            pid = int(payload.get("pid") or 0)
+            result = actions.run(user, "kill", str(pid), lambda: actions.kill_process(pid))
+            await say(message, h(result["data"] if result["ok"] else result["error"]), user)
+            return
+        if action == "close_window":
+            hwnd = str(payload.get("hwnd") or "")
+            result = actions.run(user, "close_window", hwnd, lambda: actions.close_window(hwnd))
+            await say(message, "Закрытие отправлено." if result["ok"] else h(result["error"]), user)
 
     async def send_files(message: Message, user: User, path: str, roots: bool = False) -> None:
         shown = "" if roots else (path or runner.cwd.get(message.chat.id, ""))
@@ -497,47 +500,6 @@ def build_router(runner: BotRunner) -> Router:
         for item in result["data"][:25]:
             lines.append(f"{h(item['hwnd'])} · {h(item['title'])}")
         await say(message, "\n".join(lines), user)
-
-    async def handle_pending(message: Message, pending: dict[str, Any], text: str) -> None:
-        if not private(message):
-            return
-        assert message.from_user is not None
-        if store.is_paused():
-            runner.pending.pop(message.chat.id, None)
-            await message.answer("Бот на паузе. Снимите паузу в окне или в трее на ПК.")
-            return
-        user = store.user_by_id(message.from_user.id)
-        if user is None or not store.allows(user, str(pending["action"])):
-            runner.pending.pop(message.chat.id, None)
-            await message.answer("Нет доступа.")
-            return
-        if pending["stage"] == "pin":
-            if store.pin_locked():
-                runner.pending.pop(message.chat.id, None)
-                await message.answer(f"PIN заблокирован ещё {store.lock_seconds_left()} с.")
-                return
-            if not store.check_pin(text):
-                store.audit(actor_label(user), str(pending["action"]), False, "неверный PIN")
-                await message.answer("Неверный PIN.")
-                return
-            if pending["action"] in NEEDS_CONFIRM:
-                pending["stage"] = "confirm"
-                pending["expires"] = time.time() + 120
-                await message.answer("Напишите ДА для подтверждения или НЕТ для отмены.")
-                return
-            runner.pending.pop(message.chat.id, None)
-            await perform(message, user, str(pending["action"]), pending["payload"], pin_checked=True)
-            return
-        word = text.casefold()
-        if word in {"нет", "отмена"}:
-            runner.pending.pop(message.chat.id, None)
-            await message.answer("Отменено.")
-            return
-        if word not in {"да", "yes", "ок", "ok"}:
-            await message.answer("Напишите ДА или НЕТ.")
-            return
-        runner.pending.pop(message.chat.id, None)
-        await perform(message, user, str(pending["action"]), pending["payload"], pin_checked=True)
 
     @router.message(CommandStart())
     async def start_cmd(message: Message) -> None:
@@ -659,7 +621,7 @@ def build_router(runner: BotRunner) -> Router:
         runner.pending.pop(message.chat.id, None)
         user = await access(message, "delete")
         if user:
-            await danger(message, user, "delete", {"path": rest(message)}, "Введите PIN для удаления файла.")
+            await danger(message, user, "delete", {"path": rest(message)}, "Удалить этот файл?")
 
     @router.message(Command("ps"))
     async def ps_cmd(message: Message) -> None:
@@ -679,8 +641,7 @@ def build_router(runner: BotRunner) -> Router:
             await say(message, "Формат: /kill PID", user)
             return
         pid = int(pid_text)
-        result = actions.run(user, "kill", pid_text, lambda: actions.kill_process(pid))
-        await say(message, h(result["data"] if result["ok"] else result["error"]), user)
+        await danger(message, user, "kill", {"pid": pid}, f"Завершить процесс {pid}?")
 
     @router.message(Command("run"))
     async def run_cmd(message: Message) -> None:
@@ -760,7 +721,7 @@ def build_router(runner: BotRunner) -> Router:
             return
         user = await access(message, "service_stop")
         if user:
-            await danger(message, user, "service_stop", {"name": name}, "Введите PIN для остановки службы.")
+            await danger(message, user, "service_stop", {"name": name}, f"Остановить службу {h(name)}?")
 
     @router.message(Command("power"))
     async def power_cmd(message: Message) -> None:
@@ -846,8 +807,7 @@ def build_router(runner: BotRunner) -> Router:
             return
         body = rest(message)
         if body.lstrip("-").isdigit():
-            result = actions.run(user, "close_window", body, lambda: actions.close_window(body))
-            await say(message, "Закрытие отправлено." if result["ok"] else h(result["error"]), user)
+            await danger(message, user, "close_window", {"hwnd": body}, "Закрыть это окно?")
             return
         try:
             listed = actions.list_windows()
@@ -859,8 +819,7 @@ def build_router(runner: BotRunner) -> Router:
             await say(message, "Нужен точный заголовок или hwnd из /windows." if body else "Формат: /close заголовок", user)
             return
         hwnd = matches[0]["hwnd"]
-        result = actions.run(user, "close_window", hwnd, lambda: actions.close_window(hwnd))
-        await say(message, "Закрытие отправлено." if result["ok"] else h(result["error"]), user)
+        await danger(message, user, "close_window", {"hwnd": hwnd}, f"Закрыть «{h(matches[0]['title'])}»?")
 
     @router.message(Command("open"))
     async def open_cmd(message: Message) -> None:
@@ -891,7 +850,7 @@ def build_router(runner: BotRunner) -> Router:
         runner.pending.pop(message.chat.id, None)
         user = await access(message, "shell")
         if user:
-            await danger(message, user, "shell", {"command": rest(message)}, "Введите PIN. Команда попадёт в журнал.")
+            await danger(message, user, "shell", {"command": rest(message)}, "Выполнить команду? Она попадёт в журнал.")
 
     @router.message(Command("audit"))
     async def audit_cmd(message: Message) -> None:
@@ -951,7 +910,7 @@ def build_router(runner: BotRunner) -> Router:
             runner.pending.pop(message.chat.id, None)
             pending = None
         if pending:
-            await handle_pending(message, pending, text)
+            await message.answer("Нажмите «Да» или «Нет» под вопросом.")
             return
         action = BUTTONS.get(text)
         if action == "status":
@@ -994,6 +953,30 @@ def build_router(runner: BotRunner) -> Router:
             return
         if message.chat.type != ChatType.PRIVATE:
             return
+        if data.startswith(("ok:", "no:")):
+            token = data[3:]
+            pending = runner.pending.get(message.chat.id)
+            if (
+                not pending
+                or pending.get("token") != token
+                or time.time() > float(pending.get("expires") or 0)
+            ):
+                runner.pending.pop(message.chat.id, None)
+                await message.answer("Подтверждение устарело. Повторите команду.")
+                return
+            runner.pending.pop(message.chat.id, None)
+            if store.is_paused():
+                await message.answer("Бот на паузе. Снимите паузу в окне или в трее на ПК.")
+                return
+            user = store.user_by_id(query.from_user.id)
+            if user is None or user.id != int(pending.get("user_id") or 0) or not store.allows(user, str(pending["action"])):
+                await message.answer("Нет доступа.")
+                return
+            if data.startswith("no:"):
+                await message.answer("Отменено.", reply_markup=keyboard(user))
+                return
+            await perform(message, user, str(pending["action"]), pending["payload"])
+            return
         runner.pending.pop(message.chat.id, None)
 
         async def send(text: str) -> None:
@@ -1027,21 +1010,7 @@ def build_router(runner: BotRunner) -> Router:
         if data.startswith("k:") and data[2:].isdigit():
             user = await access_id(query.from_user, "kill", send)
             if user:
-                await message.answer(
-                    f"Завершить процесс {data[2:]}?",
-                    reply_markup=inline([[("Завершить", f"y:{data[2:]}")]]),
-                )
-            return
-        if data.startswith("y:") and data[2:].isdigit():
-            user = await access_id(query.from_user, "kill", send)
-            if not user:
-                return
-            pid = int(data[2:])
-            result = actions.run(user, "kill", data[2:], lambda: actions.kill_process(pid))
-            await message.answer(
-                h(result["data"] if result["ok"] else result["error"]),
-                reply_markup=keyboard(user),
-            )
+                await danger(message, user, "kill", {"pid": int(data[2:])}, f"Завершить процесс {data[2:]}?")
             return
         if data.startswith("pw:"):
             mode = data[3:]
@@ -1054,7 +1023,8 @@ def build_router(runner: BotRunner) -> Router:
                 return
             user = await access_id(query.from_user, "power", send)
             if user:
-                await danger(message, user, "power", {"mode": mode}, "Введите PIN.")
+                names = {"lock": "блокировку", "sleep": "сон", "restart": "перезагрузку", "shutdown": "выключение"}
+                await danger(message, user, "power", {"mode": mode}, f"Подтвердите {names.get(mode, mode)}?")
 
     return router
 

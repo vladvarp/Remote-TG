@@ -176,14 +176,12 @@ class Actions:
         action: str,
         detail: str,
         fn: Callable[[], Any],
-        pin: str = "",
         confirm: bool = True,
-        pin_checked: bool = False,
     ) -> dict[str, Any]:
         if action in NEEDS_CONFIRM and not confirm:
             return fail("Подтвердите действие")
         try:
-            self.store.require(user, action, pin, pin_checked)
+            self.store.require(user, action)
         except AuthError as exc:
             self.store.audit(actor_label(user), action, False, detail)
             return fail(exc.message)

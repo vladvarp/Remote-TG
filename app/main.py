@@ -131,13 +131,12 @@ class Api:
     def rename_path(self, src: str, dst: str) -> dict[str, Any]:
         return self.actions.run(LOCAL_USER, "rename", src, lambda: self.actions.rename(src, dst))
 
-    def delete_file(self, path: str, pin: str, confirm: bool | str) -> dict[str, Any]:
+    def delete_file(self, path: str, confirm: bool | str) -> dict[str, Any]:
         return self.actions.run(
             LOCAL_USER,
             "delete",
             path,
             lambda: self.actions.delete_file(path),
-            pin=pin,
             confirm=as_bool(confirm),
         )
 
@@ -219,27 +218,25 @@ class Api:
             lambda: self.actions.service_control(name, True),
         )
 
-    def service_stop(self, name: str, pin: str, confirm: bool | str) -> dict[str, Any]:
+    def service_stop(self, name: str, confirm: bool | str) -> dict[str, Any]:
         return self.actions.run(
             LOCAL_USER,
             "service_stop",
             name,
             lambda: self.actions.service_control(name, False),
-            pin=pin,
             confirm=as_bool(confirm),
         )
 
     def screenshot(self) -> dict[str, Any]:
         return self.actions.run(LOCAL_USER, "screenshot", "скриншот", self.actions.take_screenshot)
 
-    def power(self, mode: str, pin: str, confirm: bool | str) -> dict[str, Any]:
+    def power(self, mode: str, confirm: bool | str) -> dict[str, Any]:
         action = "power_abort" if mode == "abort" else "power"
         return self.actions.run(
             LOCAL_USER,
             action,
             mode,
             lambda: self.actions.power(mode),
-            pin=pin,
             confirm=True if mode == "abort" else as_bool(confirm),
         )
 
@@ -286,15 +283,20 @@ class Api:
     def download_url(self, url: str, folder: str) -> dict[str, Any]:
         return self.actions.run(LOCAL_USER, "download_url", url, lambda: self.actions.download_url(url, folder))
 
-    def shell(self, command: str, pin: str) -> dict[str, Any]:
-        return self.actions.run(LOCAL_USER, "shell", command, lambda: self.actions.shell(command), pin=pin)
+    def shell(self, command: str, confirm: bool | str) -> dict[str, Any]:
+        return self.actions.run(
+            LOCAL_USER,
+            "shell",
+            command,
+            lambda: self.actions.shell(command),
+            confirm=as_bool(confirm),
+        )
 
     def audit(self) -> dict[str, Any]:
         return ok(self.store.recent_audit(80))
 
-    def save_tokens(self, token: str, backup: str, pin: str, clear_backup: bool | str) -> dict[str, Any]:
+    def save_tokens(self, token: str, backup: str, clear_backup: bool | str) -> dict[str, Any]:
         try:
-            self.store.require_settings_pin(pin)
             current, current_backup = self.store.tokens()
             new_token = token.strip() or current
             if as_bool(clear_backup):
@@ -309,34 +311,25 @@ class Api:
         self.runner.reload()
         return ok(True)
 
-    def save_pin(self, new_pin: str, old_pin: str) -> dict[str, Any]:
+    def issue_pair(self, role: str) -> dict[str, Any]:
         try:
-            self.store.set_pin(new_pin, old_pin)
-        except AuthError as exc:
-            self.store.audit(actor_label(LOCAL_USER), "settings", False, "PIN")
-            return fail(exc.message)
-        self.store.audit(actor_label(LOCAL_USER), "settings", True, "PIN изменён")
-        return ok(True)
-
-    def issue_pair(self, role: str, pin: str) -> dict[str, Any]:
-        try:
-            code = self.store.new_pair_code(role, pin)
+            code = self.store.new_pair_code(role)
         except AuthError as exc:
             return fail(exc.message)
         self.store.audit(actor_label(LOCAL_USER), "pair", True, role)
         return ok({"code": code, "role": role, "seconds": 600})
 
-    def set_role(self, user_id: int, role: str, pin: str) -> dict[str, Any]:
+    def set_role(self, user_id: int, role: str) -> dict[str, Any]:
         try:
-            self.store.set_role(int(user_id), role, pin)
+            self.store.set_role(int(user_id), role)
         except AuthError as exc:
             return fail(exc.message)
         self.store.audit(actor_label(LOCAL_USER), "users", True, f"{user_id} {role}")
         return ok(True)
 
-    def remove_user(self, user_id: int, pin: str) -> dict[str, Any]:
+    def remove_user(self, user_id: int) -> dict[str, Any]:
         try:
-            self.store.remove_user(int(user_id), pin)
+            self.store.remove_user(int(user_id))
         except AuthError as exc:
             return fail(exc.message)
         self.store.audit(actor_label(LOCAL_USER), "users", True, f"удалён {user_id}")
@@ -346,9 +339,8 @@ class Api:
         self.store.set_paused(as_bool(paused))
         return ok(self.store.is_paused())
 
-    def set_autostart(self, enabled: bool | str, pin: str) -> dict[str, Any]:
+    def set_autostart(self, enabled: bool | str) -> dict[str, Any]:
         try:
-            self.store.require_settings_pin(pin)
             if as_bool(enabled):
                 autostart.install()
             else:

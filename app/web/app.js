@@ -21,7 +21,6 @@ function toast(text, bad) {
   node.className = bad ? "bad" : "";
 }
 
-function pin() { return $("pin").value; }
 function confirmed() { return $("confirm").checked; }
 
 function disarm() { $("confirm").checked = false; }
@@ -95,7 +94,6 @@ function renderChecklist() {
   const box = $("checklist");
   const items = [];
   if (!boot.has_token) items.push("Вставьте токен бота в настройках.");
-  if (!boot.has_pin) items.push("Задайте PIN — без него опасные команды закрыты.");
   if (!boot.users.length) {
     items.push(boot.pair_code ? "Код привязки: " + boot.pair_code + ". В Telegram: /pair " + boot.pair_code : "Откройте настройки и выдайте код привязки.");
   }
@@ -137,15 +135,35 @@ function renderDash() {
   });
 }
 
+const ROLE_NAME = { owner: "владелец", operator: "оператор", viewer: "наблюдатель" };
+const ROLE_DIFF = {
+  viewer: "Наблюдатель: только состояние ПК и скриншот. Нет файлов, процессов, окон, звука, буфера, запуска программ и настроек.",
+  operator: "Оператор: файлы, процессы, окна, звук, буфер и запуск программ. Нет удаления, питания, остановки служб, командной строки, журнала и настроек.",
+  owner: "Владелец: всё, включая удаление, питание, остановку служб, командную строку, журнал и настройки. Опасные действия спрашивают подтверждение.",
+};
+
+function renderPairRoleHint() {
+  const role = $("pair-role").value || "operator";
+  const hint = $("pair-role-hint");
+  const parts = [ROLE_DIFF[role] || ""];
+  if (boot && boot.pair_code && boot.pair_role && boot.pair_role !== role) {
+    parts.push("Сейчас действует код для роли «" + (ROLE_NAME[boot.pair_role] || boot.pair_role) + "». Новый код заменит его.");
+  }
+  hint.textContent = parts.join(" ");
+  $("pair-role").title = ROLE_DIFF[role] || "Какие права получит человек, который введёт код";
+}
+
 function renderPair() {
   const box = $("pair-box");
   if (!boot) return;
   if (boot.pair_code) {
     const minutes = Math.ceil((boot.pair_seconds || 0) / 60);
-    box.textContent = boot.pair_code + " · " + (boot.pair_role || "") + " · ещё " + minutes + " мин";
+    const role = ROLE_NAME[boot.pair_role] || boot.pair_role || "";
+    box.textContent = boot.pair_code + " · " + role + " · ещё " + minutes + " мин";
   } else {
     box.textContent = "Код не выдан";
   }
+  renderPairRoleHint();
 }
 
 function renderSettings() {
@@ -164,14 +182,14 @@ function renderSettings() {
     });
     role.value = user.role;
     role.addEventListener("change", async () => {
-      const res = await call("set_role", user.id, role.value, pin());
+      const res = await call("set_role", user.id, role.value);
       if (done(res, "Роль обновлена")) await refresh();
       else renderSettings();
     });
     const remove = el("button", "Удалить");
     remove.type = "button";
     remove.addEventListener("click", async () => {
-      const res = await call("remove_user", user.id, pin());
+      const res = await call("remove_user", user.id);
       if (done(res, "Аккаунт удалён")) {
         await refresh();
         renderSettings();
@@ -317,7 +335,7 @@ async function loadServices() {
     stop.type = "button";
     stop.className = "danger";
     stop.addEventListener("click", async () => {
-      const res = await call("service_stop", item.name, pin(), confirmed());
+      const res = await call("service_stop", item.name, confirmed());
       if (done(res, "Остановка отправлена")) {
         disarm();
         loadServices();
@@ -412,7 +430,7 @@ $("rename-btn").addEventListener("click", async () => {
   if (done(res, "Переименовано")) loadDir(dir.path);
 });
 $("delete-btn").addEventListener("click", async () => {
-  const res = await call("delete_file", selected, pin(), confirmed());
+  const res = await call("delete_file", selected, confirmed());
   if (done(res, "Файл удалён")) { disarm(); loadDir(dir.path); }
 });
 $("open-file-btn").addEventListener("click", async () => {
@@ -463,7 +481,7 @@ $("mute-btn").addEventListener("click", async () => {
 document.querySelectorAll("[data-power]").forEach((button) => {
   button.addEventListener("click", async () => {
     const mode = button.dataset.power;
-    const res = await call("power", mode, pin(), mode === "abort" ? true : confirmed());
+    const res = await call("power", mode, mode === "abort" ? true : confirmed());
     if (done(res, res.data)) disarm();
   });
 });
@@ -475,14 +493,14 @@ $("wget-btn").addEventListener("click", async () => {
   if (done(res)) toast(String(res.data));
 });
 $("shell-btn").addEventListener("click", async () => {
-  const res = await call("shell", $("shell-cmd").value, pin());
+  const res = await call("shell", $("shell-cmd").value, confirmed());
   if (!res.ok) { toast(res.error, true); return; }
   $("shell-out").textContent = res.data || "";
   toast("Команда выполнена");
 });
 $("audit-refresh").addEventListener("click", loadAudit);
 $("save-token").addEventListener("click", async () => {
-  const res = await call("save_tokens", $("token").value, $("backup").value, pin(), $("clear-backup").checked);
+  const res = await call("save_tokens", $("token").value, $("backup").value, $("clear-backup").checked);
   if (done(res, "Токены сохранены")) {
     $("token").value = "";
     $("backup").value = "";
@@ -490,23 +508,17 @@ $("save-token").addEventListener("click", async () => {
     await refresh();
   }
 });
-$("save-pin").addEventListener("click", async () => {
-  const res = await call("save_pin", $("new-pin").value, $("old-pin").value);
-  if (done(res, "PIN сохранён")) {
-    $("new-pin").value = "";
-    $("old-pin").value = "";
-    await refresh();
-  }
-});
+$("pair-role").addEventListener("change", renderPairRoleHint);
+renderPairRoleHint();
 $("issue-pair").addEventListener("click", async () => {
-  const res = await call("issue_pair", $("pair-role").value, pin());
+  const res = await call("issue_pair", $("pair-role").value);
   if (!done(res, "Код выдан")) return;
   await refresh();
   renderPair();
 });
 $("autostart-btn").addEventListener("click", async () => {
   const enable = !(boot && boot.autostart);
-  const res = await call("set_autostart", enable, pin());
+  const res = await call("set_autostart", enable);
   if (done(res, enable ? "Автозагрузка включена" : "Автозагрузка выключена")) {
     await refresh();
     renderSettings();
