@@ -1,0 +1,304 @@
+:root {
+  color-scheme: dark;
+  --bg: #121417;
+  --panel: #1b2027;
+  --line: #2c343d;
+  --text: #e7edf3;
+  --muted: #93a0ad;
+  --accent: #3c82f6;
+  --danger: #d65b5b;
+  --ok: #3cba7a;
+  --control: 34px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 "Segoe UI", sans-serif;
+}
+
+aside {
+  width: 188px;
+  flex: none;
+  background: #171b21;
+  border-right: 1px solid var(--line);
+  padding: 16px 12px;
+  overflow: auto;
+}
+
+.brand {
+  font-weight: 650;
+  margin: 4px 8px 16px;
+}
+
+nav { display: flex; flex-direction: column; gap: 4px; }
+
+button, input, select, textarea { font: inherit; color: var(--text); }
+
+nav button {
+  height: auto;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+nav button.active, nav button:hover { background: #243041; }
+
+.wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 18px 20px;
+  overflow: auto;
+}
+
+header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  margin-bottom: 8px;
+}
+
+.statusline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: var(--control);
+}
+
+#host {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gates input[type="password"] { width: 132px; }
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+  display: inline-block;
+  flex: none;
+}
+
+.dot.ok { background: var(--ok); }
+.dot.bad { background: var(--danger); }
+
+input, select, textarea {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 9px;
+}
+
+button, select, input:not([type="checkbox"]):not([type="range"]) {
+  height: var(--control);
+}
+
+button {
+  background: #243041;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button:hover { border-color: #4d6278; }
+button.danger { background: #3a2224; }
+
+input[type="range"] {
+  width: 100%;
+  height: var(--control);
+  padding: 0;
+  accent-color: var(--accent);
+  background: transparent;
+  border: 0;
+}
+
+textarea {
+  width: 100%;
+  height: auto;
+  min-height: 88px;
+  padding: 8px 9px;
+  resize: vertical;
+}
+
+.page { display: none; }
+.page.active { display: block; }
+
+.hint {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+
+.span-2 { grid-column: span 2; }
+.span-3 { grid-column: span 3; }
+.span-4 { grid-column: span 4; }
+.span-5 { grid-column: span 5; }
+.span-6 { grid-column: span 6; }
+.span-7 { grid-column: span 7; }
+.span-8 { grid-column: span 8; }
+.span-9 { grid-column: span 9; }
+.span-12 { grid-column: span 12; }
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.field span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  min-height: 16px;
+}
+
+.field.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.field.inline span { min-height: 0; white-space: nowrap; }
+
+.field input, .field select, .field textarea { width: 100%; }
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control);
+}
+
+.path {
+  display: flex;
+  align-items: center;
+  min-height: var(--control);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.block { margin-bottom: 16px; }
+.block h2 { margin: 0 0 4px; }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.card, .disk, .line, .user, .launch, details {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.card, .disk, .line, .user { padding: 10px 12px; }
+
+.card span { display: block; color: var(--muted); font-size: 12px; }
+.card strong { font-size: 22px; }
+
+.disk { margin-bottom: 8px; }
+.bar { height: 6px; background: #2a323b; border-radius: 99px; margin-top: 6px; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+
+#toast { min-height: 1.2em; margin: 0 0 8px; color: var(--ok); }
+#toast.bad { color: var(--danger); }
+#checklist { margin: 0 0 12px; color: #f0d48a; }
+.muted, .check { color: var(--muted); }
+.code { font-size: 22px; letter-spacing: 0.08em; min-height: 1.4em; margin: 8px 0 0; }
+
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+
+.line, .user {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.line small, .user small { color: var(--muted); }
+.line.selected { border-color: var(--accent); }
+
+.col {
+  display: grid;
+  gap: 8px;
+  max-width: 560px;
+}
+
+.launch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+.launch {
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.launch code {
+  color: var(--muted);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+details { margin-bottom: 8px; padding: 0 12px 2px; }
+summary { cursor: pointer; padding: 10px 0; font-weight: 600; }
+details dl { margin: 0 0 10px; }
+details dt { font-weight: 600; margin-top: 8px; }
+details dd { margin: 2px 0 0; color: var(--muted); }
+
+#shot { max-width: 100%; margin-top: 4px; border-radius: 8px; }
+#shell-out {
+  white-space: pre-wrap;
+  background: #0e1114;
+  border-radius: 8px;
+  padding: 10px;
+  min-height: 80px;
+}
+
+h2 { font-size: 15px; margin: 16px 0 8px; }
+
+@media (max-width: 980px) {
+  .span-2, .span-3, .span-4, .span-5, .span-6, .span-7, .span-8, .span-9 { grid-column: span 12; }
+  header { grid-template-columns: 1fr; }
+  .gates { flex-wrap: wrap; }
+}

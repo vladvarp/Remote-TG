@@ -1,0 +1,16 @@
+{
+  "bot_token": "",
+  "backup_bot_token": "",
+  "pin_hash": "",
+  "pin_salt": "",
+  "users": [],
+  "pair_code": "",
+  "pair_role": "owner",
+  "pair_until": 0,
+  "failed_pins": 0,
+  "lock_until": 0,
+  "failed_pairs": 0,
+  "pair_lock_until": 0,
+  "paused": false,
+  "launchers": []
+}

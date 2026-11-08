@@ -1,0 +1,9 @@
+config.json
+config.json.tmp
+audit.log
+agent.log
+__pycache__/
+*.pyc
+.venv/
+venv/
+/.cursor

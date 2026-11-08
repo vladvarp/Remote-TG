@@ -1,0 +1,8 @@
+aiogram>=3.13,<4
+pywebview>=5.3
+pystray>=0.19
+psutil>=6.0
+Pillow>=10.0
+mss>=9.0
+comtypes>=1.4
+pycaw>=20240210

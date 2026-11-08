@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Remote TG</title>
+  <link rel="icon" href="favicon.ico">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside>
+    <div class="brand" title="Локальная панель этого ПК">Remote TG</div>
+    <nav id="nav">
+      <button type="button" data-page="dash" class="active" title="CPU, память, диски и скриншот">Обзор</button>
+      <button type="button" data-page="files" title="Диски, папки и файлы">Файлы</button>
+      <button type="button" data-page="proc" title="Список процессов и разовый запуск">Процессы</button>
+      <button type="button" data-page="launch" title="Сохранённые программы">Запуск</button>
+      <button type="button" data-page="svc" title="Службы Windows">Службы</button>
+      <button type="button" data-page="wins" title="Открытые окна">Окна</button>
+      <button type="button" data-page="sys" title="Буфер, звук, питание, ссылки">Система</button>
+      <button type="button" data-page="shell" title="Команда cmd, только владелец">Строка</button>
+      <button type="button" data-page="audit" title="Кто и что делал">Журнал</button>
+      <button type="button" data-page="settings" title="Токен, PIN, аккаунты, автозагрузка">Настройки</button>
+      <button type="button" data-page="faq" title="Описание каждого элемента и команд">FAQ</button>
+    </nav>
+  </aside>
+  <div class="wrap">
+    <header>
+      <div class="statusline" title="Слева связь с ботом, справа имя компьютера и пользователя Windows">
+        <span id="bot-dot" class="dot" title="Зелёный — бот на связи, красный — нет"></span>
+        <span id="bot-label" title="Имя бота или причина, почему он не подключён">подключение</span>
+        <span id="host" title="Имя компьютера и пользователя Windows"></span>
+      </div>
+      <div class="gates">
+        <label class="field inline" title="PIN владельца. Нужен для удаления, питания, остановки службы, оболочки и настроек">
+          <span>PIN</span>
+          <input id="pin" type="password" autocomplete="off" title="PIN владельца. Пять ошибок подряд блокируют его на 15 минут">
+        </label>
+        <label class="check" title="Галочка нужна, чтобы удалить файл, выключить ПК или остановить службу">
+          <input id="confirm" type="checkbox" title="Подтверждение опасного действия"> подтверждаю
+        </label>
+        <button id="pause-btn" type="button" title="Пауза останавливает команды из Telegram. Кнопки в этом окне продолжают работать">Пауза</button>
+      </div>
+    </header>
+    <p id="toast" title="Результат последнего действия"></p>
+    <ul id="checklist" hidden title="Что ещё нужно сделать при первом запуске"></ul>
+
+    <section id="dash" class="page active">
+      <p class="hint">Цифры обновляются каждые 3 секунды. Скриншот делается только по кнопке.</p>
+      <div class="cards" id="cards"></div>
+      <div id="disks"></div>
+      <div class="form">
+        <div class="actions span-12">
+          <button type="button" id="shot-btn" title="Снимок всего рабочего стола. В чат уходит уменьшенная копия">Скриншот</button>
+        </div>
+      </div>
+      <img id="shot" alt="Скриншот рабочего стола">
+    </section>
+
+    <section id="files" class="page">
+      <p class="hint">Один щелчок выбирает строку, двойной открывает папку. Удаляется только файл, и только с PIN и галочкой «подтверждаю».</p>
+      <div class="form">
+        <div class="actions span-3">
+          <button type="button" id="up-btn" title="Открыть родительскую папку">Вверх</button>
+          <button type="button" id="drives-btn" title="Показать корни дисков">Диски</button>
+        </div>
+        <strong id="dir-label" class="path span-9" title="Текущая папка"></strong>
+      </div>
+      <div class="row" id="drive-row"></div>
+      <div class="form">
+        <label class="field span-4"><span>Новая папка</span><input id="mkdir-name" title="Имя папки, которая появится в текущем каталоге"></label>
+        <div class="actions span-2"><button type="button" id="mkdir-btn" title="Создать папку с введённым именем">Создать</button></div>
+        <label class="field span-4"><span>Файл для копии</span><input id="copy-source" title="Полный путь файла, который скопировать в текущую папку"></label>
+        <div class="actions span-2"><button type="button" id="copy-btn" title="Скопировать файл по указанному пути сюда">Скопировать</button></div>
+      </div>
+      <div class="form">
+        <label class="field span-5"><span>Новое имя выбранного</span><input id="rename-name" title="Новое имя файла или папки, выбранных в списке"></label>
+        <div class="actions span-7">
+          <button type="button" id="rename-btn" title="Переименовать выбранную строку">Переименовать</button>
+          <button type="button" id="delete-btn" class="danger" title="Удалить выбранный файл. Папку эта кнопка не удаляет. Нужны PIN и галочка">Удалить файл</button>
+          <button type="button" id="open-file-btn" title="Открыть выбранный файл программой Windows">Открыть</button>
+          <button type="button" id="pick-btn" title="Выбрать файлы в диалоге и скопировать их в текущую папку">Выбрать файлы</button>
+        </div>
+      </div>
+      <div id="file-list"></div>
+    </section>
+
+    <section id="proc" class="page">
+      <p class="hint">Список отсортирован по памяти. Завершение процесса спрашивает галочку «подтверждаю». Поле справа запускает программу один раз и не сохраняет её.</p>
+      <div class="form">
+        <label class="field span-4"><span>Фильтр</span><input id="proc-filter" title="Часть имени или номер PID"></label>
+        <label class="field span-5"><span>Разовый запуск</span><input id="run-cmd" title="Путь или команда, например notepad или C:\Windows\System32\calc.exe"></label>
+        <div class="actions span-3">
+          <button type="button" id="run-btn" title="Запустить команду из поля слева">Запустить</button>
+          <button type="button" id="proc-refresh" title="Перечитать список процессов">Обновить</button>
+        </div>
+      </div>
+      <div id="proc-list"></div>
+    </section>
+
+    <section id="launch" class="page">
+      <p class="hint">Имя и команда сохраняются в папке данных Windows, не рядом с программой. Кнопка «Запустить» стартует программу на этом ПК. В Telegram тот же список: /apps, запуск — /go имя.</p>
+      <div class="form">
+        <label class="field span-3"><span>Имя</span><input id="launch-name" maxlength="40" title="Короткое имя кнопки и команды /go. Не больше 40 символов"></label>
+        <label class="field span-6"><span>Команда или путь</span><input id="launch-cmd" title="Путь к программе, файлу или команда, например calc"></label>
+        <div class="actions span-3">
+          <button type="button" id="launch-browse" title="Выбрать файл и подставить его путь в поле команды">Обзор</button>
+          <button type="button" id="launch-add" title="Сохранить ярлык. Сама программа при этом не запускается">Добавить</button>
+        </div>
+      </div>
+      <div id="launch-list" class="launch-grid"></div>
+    </section>
+
+    <section id="svc" class="page">
+      <p class="hint">Старт службы доступен оператору. Остановка — только владельцу, с PIN и галочкой «подтверждаю».</p>
+      <div class="form">
+        <label class="field span-8"><span>Фильтр</span><input id="svc-filter" title="Часть имени службы"></label>
+        <div class="actions span-4"><button type="button" id="svc-refresh" title="Перечитать службы">Обновить</button></div>
+      </div>
+      <div id="svc-list"></div>
+    </section>
+
+    <section id="wins" class="page">
+      <p class="hint">Видимые окна верхнего уровня. «Закрыть» просит галочку «подтверждаю» и посылает окну обычное закрытие.</p>
+      <div class="form">
+        <div class="actions span-12"><button type="button" id="win-refresh" title="Перечитать список окон">Обновить</button></div>
+      </div>
+      <div id="win-list"></div>
+    </section>
+
+    <section id="sys" class="page">
+      <div class="block">
+        <h2>Буфер</h2>
+        <p class="hint">Текст буфера обмена этого пользователя. В журнал содержимое не пишется.</p>
+        <label class="field"><span>Текст</span><textarea id="clip" rows="4" title="Содержимое буфера обмена"></textarea></label>
+        <div class="actions">
+          <button type="button" id="clip-get" title="Прочитать текущий буфер в поле">Прочитать</button>
+          <button type="button" id="clip-set" title="Записать текст из поля в буфер">Записать</button>
+        </div>
+      </div>
+      <div class="block">
+        <h2>Звук</h2>
+        <p class="hint">Громкость динамиков по умолчанию. Ползунок применяется, когда его отпускают.</p>
+        <div class="form">
+          <label class="field span-6"><span>Уровень</span><input id="vol" type="range" min="0" max="100" value="0" title="Громкость от 0 до 100"></label>
+          <div class="actions span-6">
+            <span id="vol-label" title="Текущий процент громкости">0%</span>
+            <button type="button" id="mute-btn" title="Выключить или вернуть звук">Без звука</button>
+          </div>
+        </div>
+      </div>
+      <div class="block">
+        <h2>Питание</h2>
+        <p class="hint">Блокировка, сон, перезагрузка и выключение требуют PIN и галочку. «Отмена таймера» снимает отложенное выключение без PIN.</p>
+        <div class="actions">
+          <button type="button" data-power="lock" title="Заблокировать рабочий стол">Блокировка</button>
+          <button type="button" data-power="sleep" title="Усыпить компьютер">Сон</button>
+          <button type="button" data-power="restart" title="Перезагрузка через несколько секунд. Нужны PIN и галочка">Перезагрузка</button>
+          <button type="button" data-power="shutdown" title="Выключение через несколько секунд. Нужны PIN и галочка">Выключение</button>
+          <button type="button" data-power="abort" title="Отменить уже запущенный таймер выключения или перезагрузки">Отмена таймера</button>
+        </div>
+      </div>
+      <div class="block">
+        <h2>Открыть</h2>
+        <p class="hint">Файл откроется своей программой. Ссылка должна начинаться с http:// или https://.</p>
+        <div class="form">
+          <label class="field span-8"><span>Файл или ссылка</span><input id="open-value" title="Путь к файлу или адрес http(s)"></label>
+          <div class="actions span-4"><button type="button" id="open-btn" title="Открыть путь или ссылку">Открыть</button></div>
+        </div>
+      </div>
+      <div class="block">
+        <h2>Скачать по ссылке</h2>
+        <p class="hint">Только http и https, не больше 500 МБ. Файл кладётся в указанную папку.</p>
+        <div class="form">
+          <label class="field span-5"><span>Ссылка</span><input id="wget-url" title="Адрес файла, http или https"></label>
+          <label class="field span-5"><span>Папка</span><input id="wget-dir" title="Куда сохранить файл. По умолчанию — Загрузки"></label>
+          <div class="actions span-2"><button type="button" id="wget-btn" title="Скачать файл по ссылке">Скачать</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="shell" class="page">
+      <p class="hint">Команда уходит в cmd и целиком пишется в журнал. Нужен PIN владельца. Ожидание — до 20 секунд.</p>
+      <label class="field"><span>Команда</span><textarea id="shell-cmd" rows="3" title="Команда для cmd.exe"></textarea></label>
+      <div class="actions"><button type="button" id="shell-btn" title="Выполнить команду. Нужен PIN в шапке">Выполнить</button></div>
+      <pre id="shell-out" title="Вывод последней команды"></pre>
+    </section>
+
+    <section id="audit" class="page">
+      <p class="hint">Последние строки журнала из папки данных Windows: время, кто, действие и получилось ли. Текст буфера и PIN сюда не попадают.</p>
+      <div class="form">
+        <div class="actions span-12"><button type="button" id="audit-refresh" title="Перечитать журнал">Обновить</button></div>
+      </div>
+      <div id="audit-list"></div>
+    </section>
+
+    <section id="settings" class="page">
+      <div class="block">
+        <h2>Бот</h2>
+        <p class="hint">Пустое поле токена не затирает уже сохранённый. Чтобы убрать запасной, отметьте галочку. Сохранение просит PIN.</p>
+        <div class="col">
+          <label class="field"><span>Токен BotFather</span><input id="token" type="password" autocomplete="off" title="Токен основного бота. Пустое поле оставляет прежний"></label>
+          <label class="field"><span>Запасной токен</span><input id="backup" type="password" autocomplete="off" title="Второй бот на этот же ПК, если основной не отвечает"></label>
+          <label class="check" title="Стереть запасной токен при сохранении"><input id="clear-backup" type="checkbox"> убрать запасной токен</label>
+          <div class="actions"><button type="button" id="save-token" title="Записать токены. Нужен PIN">Сохранить токены</button></div>
+        </div>
+      </div>
+      <div class="block">
+        <h2>PIN</h2>
+        <p class="hint">4–32 символа. Если PIN уже задан, введите и старый. Пять неверных попыток запирают ввод на 15 минут.</p>
+        <div class="form">
+          <label class="field span-4"><span>Новый PIN</span><input id="new-pin" type="password" autocomplete="off" title="Новый PIN, от 4 до 32 символов"></label>
+          <label class="field span-4"><span>Старый PIN</span><input id="old-pin" type="password" autocomplete="off" title="Текущий PIN. При первой установке оставьте пустым"></label>
+          <div class="actions span-4"><button type="button" id="save-pin" title="Сменить PIN">Сохранить PIN</button></div>
+        </div>
+      </div>
+      <div class="block">
+        <h2>Привязка</h2>
+        <p class="hint">Код показывается только здесь и живёт 10 минут. В чат он сам не уходит. Человек пишет боту /pair КОД.</p>
+        <div class="form">
+          <label class="field span-4"><span>Роль нового аккаунта</span>
+            <select id="pair-role" title="Какие права получит человек, который введёт код">
+              <option value="operator">оператор</option>
+              <option value="viewer">наблюдатель</option>
+              <option value="owner">владелец</option>
+            </select>
+          </label>
+          <div class="actions span-8"><button type="button" id="issue-pair" title="Выдать одноразовый код на 10 минут. Нужен PIN">Выдать код на 10 минут</button></div>
+        </div>
+        <p id="pair-box" class="code" title="Текущий код привязки, роль и сколько минут осталось"></p>
+      </div>
+      <div class="block">
+        <h2>Аккаунты</h2>
+        <p class="hint">Роль меняется сразу. Последнего владельца удалить нельзя. Изменение просит PIN.</p>
+        <div id="users"></div>
+      </div>
+      <div class="block">
+        <h2>Автозагрузка</h2>
+        <p class="hint">Ярлык Remote TG лежит в папке автозагрузки Windows. При входе система снова показывает UAC. Скрытой задачи нет.</p>
+        <button type="button" id="autostart-btn" title="Создать или удалить ярлык автозагрузки. Нужен PIN">Включить</button>
+      </div>
+    </section>
+
+    <section id="faq" class="page">
+      <p class="hint">Как устроено окно и те же действия из Telegram. Программа управляет только этим компьютером.</p>
+
+      <details open>
+        <summary>Шапка</summary>
+        <dl>
+          <dt>Точка и подпись бота</dt>
+          <dd>Зелёная точка — бот отвечает Telegram. Красная — токен пустой, неверный или сеть недоступна. Подпись показывает имя бота или текст ошибки.</dd>
+          <dt>Имя справа от точки</dt>
+          <dd>Компьютер и пользователь Windows, от чьего имени работает программа.</dd>
+          <dt>PIN</dt>
+          <dd>Секрет владельца. Его спрашивают удаление файла, питание, остановка службы, командная строка, токены, смена ролей и автозагрузка. Пять ошибок подряд закрывают PIN на 15 минут.</dd>
+          <dt>Подтверждаю</dt>
+          <dd>Галочка на одно опасное действие: удалить файл, выключить или перезагрузить ПК, усыпить, заблокировать, остановить службу, завершить процесс или закрыть окно. После успеха она снимается.</dd>
+          <dt>Пауза</dt>
+          <dd>Бот перестаёт выполнять команды из Telegram и не шлёт уведомления. Кнопки в этом окне работают. Повторное нажатие снимает паузу.</dd>
+        </dl>
+      </details>
+
+      <details>
+        <summary>Обзор</summary>
+        <dl>
+          <dt>Карточки</dt>
+          <dd>CPU, занятая память, время работы, скорость сети и батарея, если она есть. Обновление раз в 3 секунды.</dd>
+          <dt>Полосы дисков</dt>
+          <dd>Буква диска, сколько занято и сколько свободно.</dd>
+          <dt>Скриншот</dt>
+          <dd>Снимок всего рабочего стола. Картинка остаётся на странице. В Telegram ту же команду даёт /shot.</dd>
+        </dl>
+      </details>
+
+      <details>
+        <summary>Файлы</summary>
+        <dl>
+          <dt>Вверх и Диски</dt>
+          <dd>«Вверх» открывает родительскую папку. «Диски» показывает корни вроде C:\. Кнопки букв под строкой пути открывают диск сразу.</dd>
+          <dt>Список</dt>
+          <dd>Щелчок выделяет строку. Двойной щелчок по папке заходит внутрь. Размер и дата видны справа.</dd>
+          <dt>Новая папка и Скопировать</dt>
+          <dd>«Создать» делает папку в текущем каталоге. «Скопировать» берёт файл по полному пути и кладёт его копию сюда. «Выбрать файлы» открывает диалог и копирует отмеченное.</dd>
+          <dt>Переименовать, Удалить, Открыть</dt>
+          <dd>Действуют на выделенную строку. Удаление только для файла: нужны PIN и галочка, папка не удаляется. «Открыть» отдаёт файл Windows.</dd>
+        </dl>
+      </details>
+
+      <details>
+        <summary>Процессы и быстрый запуск</summary>
+        <dl>
+          <dt>Фильтр и Обновить</dt>
+          <dd>Фильтр оставляет строки, где есть часть имени или PID. Список сортируется по занятой памяти.</dd>
+          <dt>Разовый запуск</dt>
+          <dd>Поле на странице «Процессы» стартует команду и ничего не запоминает. То же делает /run в Telegram.</dd>
+          <dt>Завершить</dt>
+          <dd>Кнопка в строке процесса. Нужна галочка «подтверждаю».</dd>
+          <dt>Страница «Запуск»</dt>
+          <dd>Имя плюс путь или команда. «Обзор» подставляет файл. «Добавить» пишет ярлык в папку %AppData%\Remote TG, не больше 24. «Запустить» стартует сохранённое, «Удалить» убирает только ярлык. В Telegram: /apps показывает список, /go имя запускает.</dd>
+        </dl>
+      </details>
+
+      <details>
+        <summary>Службы, окна, система</summary>
+        <dl>
+          <dt>Службы</dt>
+          <dd>Фильтр по имени. «Старт» включает службу. «Стоп» выключает её и требует PIN с галочкой.</dd>
+          <dt>Окна</dt>
+          <dd>Заголовок и программа. «Закрыть» просит галочку и закрывает окно обычным способом.</dd>
+          <dt>Буфер и звук</dt>
+          <dd>«Прочитать» и «Записать» работают с буфером обмена. Ползунок задаёт громкость, «Без звука» её глушит. Текст буфера в журнал не пишется.</dd>
+          <dt>Питание</dt>
+          <dd>Блокировка, сон, перезагрузка и выключение ждут PIN и галочку. Таймер выключения можно снять кнопкой «Отмена таймера» без PIN.</dd>
+          <dt>Открыть и скачать</dt>
+          <dd>«Открыть» принимает путь или ссылку http(s). «Скачать» сохраняет файл по ссылке в папку, по умолчанию в «Загрузки», до 500 МБ.</dd>
+        </dl>
+      </details>
+
+      <details>
+        <summary>Строка, журнал, настройки</summary>
+        <dl>
+          <dt>Строка</dt>
+          <dd>Только владелец. Команда выполняется в cmd до 20 секунд, текст команды попадает в журнал. В шапке должен быть PIN.</dd>
+          <dt>Журнал</dt>
+          <dd>Журнал лежит в %AppData%\Remote TG\audit.log: время, кто, действие, успех. Тот же хвост владелец получает командой /audit. В папке программы этих файлов нет.</dd>
+          <dt>Токены</dt>
+          <dd>Токен берётся у @BotFather. Запасной используется, если основной не отвечает на проверку. Пустое поле не стирает токен. Галочка «убрать запасной» стирает второй.</dd>
+          <dt>Привязка и аккаунты</dt>
+          <dd>Первый человек, который введёт код, становится владельцем. Следующие коды живут 10 минут и видны только на экране. Роли: владелец может всё, оператор — файлы, процессы, окна, звук и буфер, наблюдатель — статус и скриншот. Последнего владельца удалить нельзя.</dd>
+          <dt>Автозагрузка</dt>
+          <dd>Кнопка создаёт или удаляет ярлык в папке Startup. При каждом входе Windows показывает обычный запрос UAC.</dd>
+        </dl>
+      </details>
+
+      <details>
+        <summary>Трей и Telegram</summary>
+        <dl>
+          <dt>Окно и трей</dt>
+          <dd>Крестик прячет окно в трей, процесс не завершается. В меню трея: открыть, пауза, выход. Выход останавливает программу.</dd>
+          <dt>Команды</dt>
+          <dd>/status, /shot, /ls, /cd, /get, /mkdir, /rename путь | имя, /rm, /ps, /kill, /run, /apps, /go имя, /services, /svc start|stop, /power, /clip, /vol, /mute, /windows, /close, /open, /wget URL | папка, /sh, /audit. /help показывает команды вашей роли.</dd>
+          <dt>Файл в чат</dt>
+          <dd>Бот принимает файл до 20 МБ и кладёт его в текущую папку. Подпись с путём C:\... выбирает другую папку. Обратно отправляется файл до 49 МБ.</dd>
+          <dt>Чего программа не делает</dt>
+          <dd>Нет обхода UAC, скрытия процесса, кейлогера и чтения памяти других программ. Панель не открывается из сети: страница доступна только в окне на этом ПК.</dd>
+        </dl>
+      </details>
+    </section>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
