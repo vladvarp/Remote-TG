@@ -98,14 +98,40 @@ def unique_path(folder: Path, name: str) -> Path:
     raise ValueError("Слишком много файлов с таким именем")
 
 
+_MOJIBAKE = set("ЂЃЄЅІЇЈЉЊЋЌЎЏђѓєѕіїјљњћќўџ„«»®°¶·№¤¦")
+
+
+def _text_score(text: str) -> int:
+    score = 0
+    for ch in text:
+        if "А" <= ch <= "я" or ch in "Ёё":
+            score += 2
+        elif ch in _MOJIBAKE or ch == "\ufffd":
+            score -= 3
+    return score
+
+
 def _decode(data: bytes) -> str:
     if not data:
         return ""
-    oem = f"cp{ctypes.windll.kernel32.GetOEMCP()}"
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return data.decode("utf-16", "replace")
+    found: list[str] = []
     try:
-        return data.decode(oem)
+        found.append(data.decode("utf-8"))
     except UnicodeDecodeError:
+        pass
+    for getter in (
+        ctypes.windll.kernel32.GetOEMCP,
+        ctypes.windll.kernel32.GetACP,
+    ):
+        try:
+            found.append(data.decode(f"cp{int(getter())}"))
+        except (LookupError, UnicodeDecodeError):
+            continue
+    if not found:
         return data.decode("utf-8", "replace")
+    return max(found, key=_text_score)
 
 
 def _user32() -> ctypes.WinDLL:

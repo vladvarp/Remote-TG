@@ -437,6 +437,7 @@ def build_router(runner: BotRunner) -> Router:
             runner.cwd[message.chat.id] = data["path"]
         lines = [f"<b>{h(data['path'] or 'Диски')}</b>"]
         rows: list[list[tuple[str, str]]] = []
+        entries = data["entries"]
         if not data["path"]:
             row: list[tuple[str, str]] = []
             for drive in data["drives"]:
@@ -446,23 +447,40 @@ def build_router(runner: BotRunner) -> Router:
                     row = []
             if row:
                 rows.append(row)
-        else:
-            rows.append([("Вверх", "o:" + runner.remember(data["parent"] or ""))])
-            for entry in [item for item in data["entries"] if item["dir"]][:8]:
-                rows.append([(entry["name"][:28], "o:" + runner.remember(entry["path"]))])
-            for entry in [item for item in data["entries"] if not item["dir"]][:6]:
-                rows.append([("Файл " + entry["name"][:24], "g:" + runner.remember(entry["path"]))])
-            preview = data["entries"][:20]
-            if preview:
-                lines.append("")
-            for entry in preview:
-                mark = "папка" if entry["dir"] else format_bytes(entry["size"])
-                lines.append(f"{h(entry['name'])} · {mark}")
-            if data["truncated"]:
-                lines.append("Показаны первые 400 имён.")
-        if rows:
-            await message.answer("Открыть", reply_markup=inline(rows))
-        await message.answer("\n".join(lines), reply_markup=keyboard(user))
+            if rows:
+                await message.answer("Диски", reply_markup=inline(rows))
+            await message.answer("\n".join(lines), reply_markup=keyboard(user))
+            return
+        rows.append([("Вверх", "o:" + runner.remember(data["parent"] or ""))])
+        for entry in [item for item in entries if item["dir"]][:80]:
+            rows.append([(entry["name"][:40], "o:" + runner.remember(entry["path"]))])
+        if len(entries) <= 30:
+            for entry in [item for item in entries if not item["dir"]]:
+                rows.append([("Файл " + entry["name"][:32], "g:" + runner.remember(entry["path"]))])
+        for start in range(0, len(rows), 20):
+            await message.answer("Открыть", reply_markup=inline(rows[start : start + 20]))
+        body = [f"<b>{h(data['path'])}</b>", ""]
+        for entry in entries:
+            mark = "папка" if entry["dir"] else format_bytes(entry["size"])
+            body.append(f"{h(entry['name'])} · {mark}")
+        if not entries:
+            body.append("Папка пуста.")
+        if data["truncated"]:
+            body.append("Показаны первые 400 имён.")
+        if sum(1 for item in entries if item["dir"]) > 80:
+            body.append("Кнопки есть у первых 80 папок. Остальные открываются через /cd.")
+        part = ""
+        parts: list[str] = []
+        for line in body:
+            if part and len(part) + len(line) + 1 > 3500:
+                parts.append(part)
+                part = line
+            else:
+                part = f"{part}\n{line}" if part else line
+        if part:
+            parts.append(part)
+        for index, text in enumerate(parts):
+            await message.answer(text, reply_markup=keyboard(user) if index == len(parts) - 1 else None)
 
     async def send_file(message: Message, user: User, path: str) -> None:
         result = actions.run(user, "files", path, lambda: actions.file_info(path))

@@ -108,10 +108,13 @@
 
     <section id="svc" class="page">
       <p class="hint">Старт службы доступен оператору. Остановка — только владельцу и только с галочкой «подтверждаю».</p>
-      <div class="form">
-        <label class="field span-8"><span>Фильтр</span><input id="svc-filter" title="Часть имени службы"></label>
-        <div class="actions span-4"><button type="button" id="svc-refresh" title="Перечитать службы">Обновить</button></div>
-      </div>
+      <label class="field">
+        <span>Фильтр</span>
+        <div class="with-btn">
+          <input id="svc-filter" title="Часть имени службы">
+          <button type="button" id="svc-refresh" title="Перечитать службы">Обновить</button>
+        </div>
+      </label>
       <div id="svc-list"></div>
     </section>
 
@@ -136,13 +139,14 @@
       <div class="block">
         <h2>Звук</h2>
         <p class="hint">Громкость динамиков по умолчанию. Ползунок применяется, когда его отпускают.</p>
-        <div class="form">
-          <label class="field span-6"><span>Уровень</span><input id="vol" type="range" min="0" max="100" value="0" title="Громкость от 0 до 100"></label>
-          <div class="actions span-6">
+        <label class="field">
+          <span>Уровень</span>
+          <div class="with-btn">
+            <input id="vol" type="range" min="0" max="100" value="0" title="Громкость от 0 до 100">
             <span id="vol-label" title="Текущий процент громкости">0%</span>
             <button type="button" id="mute-btn" title="Выключить или вернуть звук">Без звука</button>
           </div>
-        </div>
+        </label>
       </div>
       <div class="block">
         <h2>Питание</h2>
@@ -158,18 +162,21 @@
       <div class="block">
         <h2>Открыть</h2>
         <p class="hint">Файл откроется своей программой. Ссылка должна начинаться с http:// или https://.</p>
-        <div class="form">
-          <label class="field span-8"><span>Файл или ссылка</span><input id="open-value" title="Путь к файлу или адрес http(s)"></label>
-          <div class="actions span-4"><button type="button" id="open-btn" title="Открыть путь или ссылку">Открыть</button></div>
-        </div>
+        <label class="field">
+          <span>Файл или ссылка</span>
+          <div class="with-btn">
+            <input id="open-value" title="Путь к файлу или адрес http(s)">
+            <button type="button" id="open-btn" title="Открыть путь или ссылку">Открыть</button>
+          </div>
+        </label>
       </div>
       <div class="block">
         <h2>Скачать по ссылке</h2>
         <p class="hint">Только http и https, не больше 500 МБ. Файл кладётся в указанную папку.</p>
-        <div class="form">
-          <label class="field span-5"><span>Ссылка</span><input id="wget-url" title="Адрес файла, http или https"></label>
-          <label class="field span-5"><span>Папка</span><input id="wget-dir" title="Куда сохранить файл. По умолчанию — Загрузки"></label>
-          <div class="actions span-2"><button type="button" id="wget-btn" title="Скачать файл по ссылке">Скачать</button></div>
+        <div class="wget-row">
+          <label class="field"><span>Ссылка</span><input id="wget-url" title="Адрес файла, http или https"></label>
+          <label class="field"><span>Папка</span><input id="wget-dir" title="Куда сохранить файл. По умолчанию — Загрузки"></label>
+          <button type="button" id="wget-btn" title="Скачать файл по ссылке">Скачать</button>
         </div>
       </div>
     </section>

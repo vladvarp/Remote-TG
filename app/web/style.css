@@ -116,10 +116,11 @@ button, select, input:not([type="checkbox"]):not([type="range"]) {
 }
 
 button {
+  margin: 0;
   background: #243041;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 0 10px;
+  padding: 0 12px;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -194,13 +195,36 @@ textarea {
 .field.inline span { min-height: 0; white-space: nowrap; }
 
 .field input, .field select, .field textarea { width: 100%; }
+.field textarea { display: block; }
+
+.with-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.with-btn > input { flex: 1; min-width: 0; width: auto; }
+.with-btn > button,
+#vol-label { flex: none; }
+#vol-label { min-width: 48px; text-align: right; }
+
+.wget-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
 
 .actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 12px;
   min-height: var(--control);
 }
+
+.field + .actions { margin-top: 12px; }
 
 .path {
   display: flex;
@@ -246,11 +270,15 @@ textarea {
 
 .line, .user {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 12px;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
+
+.line > :first-child { flex: 1; min-width: 0; }
+.line > button,
+.line > .actions { margin-top: 0; margin-left: auto; flex: none; }
 
 .line small, .user small { color: var(--muted); }
 .line.selected { border-color: var(--accent); }
@@ -287,12 +315,15 @@ details dt { font-weight: 600; margin-top: 8px; }
 details dd { margin: 2px 0 0; color: var(--muted); }
 
 #shot { max-width: 100%; margin-top: 4px; border-radius: 8px; }
+#svc-list { margin-top: 12px; }
 #shell-out {
+  margin-top: 12px;
   white-space: pre-wrap;
   background: #0e1114;
   border-radius: 8px;
   padding: 10px;
   min-height: 80px;
+  font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
 }
 
 h2 { font-size: 15px; margin: 16px 0 8px; }

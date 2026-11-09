@@ -341,7 +341,9 @@ async function loadServices() {
         loadServices();
       }
     });
-    row.append(label, start, stop);
+    const buttons = el("div", "", "actions");
+    buttons.append(start, stop);
+    row.append(label, buttons);
     list.append(row);
   });
 }
